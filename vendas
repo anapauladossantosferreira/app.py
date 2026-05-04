@@ -1,0 +1,98 @@
+import sqlite3
+import hashlib
+
+# --- DATABASE SETUP ---
+def init_db():
+    conn = sqlite3.connect('sisvenda.db')
+    cursor = conn.cursor()
+    
+    # Users (Login)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
+                      (username TEXT PRIMARY KEY, password TEXT)''')
+    
+    # Customers (Clientes)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS customers 
+                      (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT)''')
+    
+    # Products (Produtos)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS products 
+                      (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, price REAL)''')
+    
+    # Sales (Vendas)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS sales 
+                      (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                       customer_id INTEGER, 
+                       product_id INTEGER, 
+                       quantity INTEGER,
+                       FOREIGN KEY(customer_id) REFERENCES customers(id),
+                       FOREIGN KEY(product_id) REFERENCES products(id))''')
+    
+    # Create a default admin if none exists (password: admin123)
+    cursor.execute("INSERT OR IGNORE INTO users VALUES (?, ?)", 
+                   ('admin', hashlib.sha256('admin123'.encode()).hexdigest()))
+    
+    conn.commit()
+    return conn
+
+# --- LOGIC MODULES ---
+
+def login(conn):
+    print("\n--- LOGIN ---")
+    user = input("Username: ")
+    pwd = input("Password: ")
+    hashed_pwd = hashlib.sha256(pwd.encode()).hexdigest()
+    
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (user, hashed_pwd))
+    return cursor.fetchone() is not None
+
+def register_customer(conn):
+    name = input("Customer Name: ")
+    email = input("Customer Email: ")
+    conn.execute("INSERT INTO customers (name, email) VALUES (?, ?)", (name, email))
+    conn.commit()
+    print("Customer registered successfully!")
+
+def register_product(conn):
+    name = input("Product Name: ")
+    price = float(input("Product Price: "))
+    conn.execute("INSERT INTO products (name, price) VALUES (?, ?)", (name, price))
+    conn.commit()
+    print("Product registered successfully!")
+
+def register_sale(conn):
+    # In a real app, you'd list IDs here for the user to pick
+    cust_id = int(input("Customer ID: "))
+    prod_id = int(input("Product ID: "))
+    qty = int(input("Quantity: "))
+    conn.execute("INSERT INTO sales (customer_id, product_id, quantity) VALUES (?, ?, ?)", 
+                 (cust_id, prod_id, qty))
+    conn.commit()
+    print("Sale recorded!")
+
+# --- MAIN MENU ---
+
+def main():
+    db = init_db()
+    
+    if not login(db):
+        print("Access Denied.")
+        return
+
+    while True:
+        print("\n--- SISVENDA MENU ---")
+        print("1. Register Customer")
+        print("2. Register Product")
+        print("3. Register Sale")
+        print("0. Exit")
+        
+        choice = input("Select an option: ")
+        
+        if choice == '1': register_customer(db)
+        elif choice == '2': register_product(db)
+        elif choice == '3': register_sale(db)
+        elif choice == '0': break
+        else: print("Invalid option.")
+
+if __name__ == "__main__":
+    main()
